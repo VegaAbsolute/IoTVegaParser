@@ -23,6 +23,14 @@ function readUInt32LE (buf, offset) {
       (buf[offset + 2] << 16)) +
       (buf[offset + 3] * 0x1000000);
 }
+function encodeValue(length, value, res) {
+  for (let i = 1; i <= length; i++) {
+    const offset = 8*(i-1);
+    res.push(
+      (value >> offset) & 0xFF
+    );
+  }
+}
 function uInt8toCurrentSettingsVegaSI (val) {
 	var MASK_TYPE_ACTIVATION      = 0x01;
     var MASK_CONNECTION_PERIOD    = 0x0E;
@@ -217,9 +225,12 @@ function parseSettingVega (setting)
     
     if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
   }
-  return result;
+  return { data: result };
 }
-function Decode (fPort, bytes, variables) {
+function decodeUplink (input) {
+  var fPort = input.fPort;
+  var bytes = input.bytes;
+  var variables = input.variables;
   var result = {
   	decoder:"vega_si_11_v1",
     statusDecode: false
@@ -312,3 +323,159 @@ function Decode (fPort, bytes, variables) {
   }
   return result;
 }
+function Encode(fPort, obj, variables) {
+  const res = [];
+  if ( fPort === 3 ) 
+  {
+    let rawType = 0;
+    const lengthMap = {
+      '4': 1,
+      '8': 1,
+      '12': 1,
+      '13': 1,
+      '14': 1,
+      '15': 1,
+      '16': 1,
+      '49': 1,
+      '55': 2,
+    };
+    const type = obj.type;
+    if (type === 'set_settings') {
+      rawType = 0;
+      res.push(rawType);
+    }
+    else if (type === 'get_settings') {
+      rawType = 1;
+      res.push(rawType);
+      return res;
+    }
+    else return res;
+    const settings = obj.settings
+    if (settings && typeof settings === 'object' && Array.isArray(settings))
+    {
+      settings.forEach(setting => {
+        if (!setting || typeof setting !== 'object') return;
+        const { value } = setting;
+        const id = parseInt(setting.id, 10);
+        const length = lengthMap[String(id)];
+        if (typeof id !== 'number') return;
+        if (id === 4) {
+          let rawValue;
+          if (value === 'confirmed') rawValue = 1;
+          if (value === 'unconfirmed') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 8) {
+          if (typeof value !== 'number' || value < 1 || value > 15) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, value, res);
+        }
+        if (id === 12) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 13) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 14) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 15) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 16) {  
+          let rawValue;
+          if (value === 60) rawValue = 1;
+          if (value === 360) rawValue = 2;
+          if (value === 720) rawValue = 3;
+          if (value === 1440) rawValue = 4;
+          if (value === 5) rawValue = 5;
+          if (value === 15) rawValue = 6;
+          if (value === 30) rawValue = 7;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 49) {  
+          let rawValue;
+          if (value === 60) rawValue = 1;
+          if (value === 360) rawValue = 2;
+          if (value === 720) rawValue = 3;
+          if (value === 1440) rawValue = 4;
+          if (value === 5) rawValue = 5;
+          if (value === 15) rawValue = 6;
+          if (value === 30) rawValue = 7;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 55) {
+          if (typeof value !== 'number' && (value < -720 || value > 840)) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, value, res);
+        }
+      });
+    }
+  }
+  if ( fPort === 4 )
+  {
+    let rawType = 0;
+    const type = obj.type;
+    if (type === 'time_correction') 
+    {
+      rawType = 255;
+      res.push(rawType);
+    }
+    else return res;
+    const value = obj.value;
+    if (
+      typeof value === 'number' &&
+      value >= -9223372036854775808 &&
+      value <= 9223372036854775807
+    ) 
+    {
+      encodeValue(8, value);
+    }
+    else return [];
+  }
+  return res;
+}
+
+function encodeDownlink(input){
+  const fPort = input.fPort;
+  const obj = input.obj;
+  const variables = input.variables;
+  return { bytes: Encode(fPort, obj, variables) }
+}
+
+

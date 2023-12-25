@@ -469,7 +469,10 @@ function parseSettingVega (setting)
   }
   return result;
 }
-function Decode (fPort, bytes, variables) {
+function decodeUplink (input) {
+  var fPort = input.fPort;
+  var bytes = input.bytes;
+  var variables = input.variables;
   var result = {
   	decoder:"vega_si_12_v1",
     statusDecode: false
@@ -610,5 +613,5 @@ function Decode (fPort, bytes, variables) {
       result.statusDecode = true;
     }
   }
-  return result;
+  return { data: result };
 }

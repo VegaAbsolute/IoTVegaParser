@@ -102,7 +102,10 @@ function uInt8toPresence (val) {
   result.temperature = temperature?true:false;
   return result;
 }
-function Decode (fPort, bytes, variables) {
+function decodeUplink (input) {
+  var fPort = input.fPort;
+  var bytes = input.bytes;
+  var variables = input.variables;
   var result = {
     decoder:"vega_ts12_v1",
     statusDecode: false
@@ -139,5 +142,5 @@ function Decode (fPort, bytes, variables) {
     result.presence = presence;
     result.statusDecode = true;
   }
-  return result;
+  return { data: result };
 }

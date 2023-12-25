@@ -33,6 +33,14 @@ function parseReasonVega (val) {
   else if ( val === 6 ) return 'byCaseOpened';
   else return 'notValidValue';
 }
+function encodeValue(length, value, res) {
+  for (let i = 1; i <= length; i++) {
+    const offset = 8*(i-1);
+    res.push(
+      (value >> offset) & 0xFF
+    );
+  }
+}
 function parseSettingVega (setting)
 {
   var result = {
@@ -269,7 +277,7 @@ function parseSettingVega (setting)
   {
     result.name = 'initialConsumption';
     var val = readUInt32LE(setting.rawValue,0);
-    result.value = val / 100;
+    result.value = val / 1000;
 
     if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
   }
@@ -460,7 +468,10 @@ function parseSettingVega (setting)
   }
   return result;
 }
-function Decode (fPort, bytes, variables) {
+function decodeUplink (input) {
+  var fPort = input.fPort;
+  var bytes = input.bytes;
+  var variables = input.variables;
   var result = {
     decoder:"vega_gm2_v1",
     statusDecode: false
@@ -526,5 +537,172 @@ function Decode (fPort, bytes, variables) {
       result.statusDecode = true;
     }
   }
-  return result;
+  return { data: result };
+}
+function Encode(input) {
+  const fPort = input.fPort;
+  const obj = input.obj;
+  const variables = input.variables;
+  const res = [];
+  if ( fPort === 2 )
+  {
+    let rawOutputNum = 0;
+    const data = obj.data;
+    const outputNum = data.outputNum;
+    if ( typeof outputNum === 'number' && outputNum >= 0 && outputNum < 256 ) 
+    {
+      rawOutputNum = outputNum;
+    }
+    res.push(rawOutputNum);
+    let rawState = 2;
+    const state = data.state;
+    if ( state === 'unlocking' ) rawState = 0; 
+    else if ( state === 'closure' ) rawState = 1;
+    res.push(rawState);
+    const time = data.time;
+    if ( typeof time === 'number' && time >= 0 && time < 65536 )
+    {
+      encodeValue(2, time, res);
+    }
+    else return [];
+  }
+  if ( fPort === 3 ) 
+  {
+    const lengthMap = {
+      '4': 1,
+      '8': 1,
+      '12': 1,
+      '13': 1,
+      '16': 1,
+      '49': 1,
+      '55': 2,
+      '56': 4,
+    };
+    let rawType = 0;
+    const type = obj.type;
+    if (type === 'set_settings') {
+      rawType = 0;
+      res.push(rawType);
+    }
+    else if (type === 'get_settings') {
+      rawType = 1;
+      res.push(rawType);
+      return res;
+    }
+    else return res;
+    const settings = obj.settings
+    if (settings && typeof settings === 'object' && Array.isArray(settings))
+    {
+      settings.forEach(setting => {
+        if (!setting || typeof setting !== 'object') return;
+        const { value } = setting;
+        const id = parseInt(setting.id, 10);
+        const length = lengthMap[String(id)];
+        if (typeof id !== 'number') return;
+        if (id === 4) {
+          let rawValue;
+          if (value === 'confirmed') rawValue = 1;
+          if (value === 'unconfirmed') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 8) {
+          if (typeof value !== 'number' || value < 1 || value > 15) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, value, res);
+        }
+        if (id === 12) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 13) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 16) {  
+          let rawValue;
+          if (value === 60) rawValue = 1;
+          if (value === 360) rawValue = 2;
+          if (value === 720) rawValue = 3;
+          if (value === 1440) rawValue = 4;
+          if (value === 5) rawValue = 5;
+          if (value === 15) rawValue = 6;
+          if (value === 30) rawValue = 7;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 49) {  
+          let rawValue;
+          if (value === 60) rawValue = 1;
+          if (value === 360) rawValue = 2;
+          if (value === 720) rawValue = 3;
+          if (value === 1440) rawValue = 4;
+          if (value === 5) rawValue = 5;
+          if (value === 15) rawValue = 6;
+          if (value === 30) rawValue = 7;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 55) {
+          if (typeof value !== 'number' && (value < -720 || value > 840)) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, value, res);
+        }
+        if (id === 56) {
+          if (
+            typeof value !== 'number' ||
+            value < -9223372036854775808 ||
+            value > 9223372036854775807
+          ) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, value*1000, res);
+        }
+      });
+    }
+  }
+  if ( fPort === 4 )
+  {
+    let rawType = 0;
+    const type = obj.type;
+    if (type === 'time_correction') 
+    {
+      rawType = 255;
+      res.push(rawType);
+    }
+    else return res;
+    const value = obj.data.value;
+    if (
+      typeof value === 'number' &&
+      value >= -9223372036854775808 &&
+      value <= 9223372036854775807
+    ) 
+    {
+      encodeValue(8, value);
+    }
+    else return [];
+  }
+  return res;
+}
+
+function encodeDownlink(input){
+  return { bytes: Encode(input) }
 }

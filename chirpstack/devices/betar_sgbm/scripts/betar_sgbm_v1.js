@@ -1,81 +1,34 @@
 function readInt8 (buf, offset) {
-    offset = offset >>> 0;
-    if (!(buf[offset] & 0x80)) return (buf[offset]);
-    return ((0xff - buf[offset] + 1) * -1);
+  offset = offset >>> 0;
+  if (!(buf[offset] & 0x80)) return (buf[offset]);
+  return ((0xff - buf[offset] + 1) * -1);
 }
 function readUInt8 (buf, offset) {
-  offset = offset >>> 0;
-  return (buf[offset]);
+offset = offset >>> 0;
+return (buf[offset]);
 }
 function readUInt16LE (buf, offset) {
-    offset = offset >>> 0;
-    return buf[offset] | (buf[offset + 1] << 8);
+  offset = offset >>> 0;
+  return buf[offset] | (buf[offset + 1] << 8);
 }
 function readInt16LE (buf, offset) {
-    offset = offset >>> 0;
-    var val = buf[offset] | (buf[offset + 1] << 8);
-    return (val & 0x8000) ? val | 0xFFFF0000 : val;
+  offset = offset >>> 0;
+  var val = buf[offset] | (buf[offset + 1] << 8);
+  return (val & 0x8000) ? val | 0xFFFF0000 : val;
 }
 function readUInt32LE (buf, offset) {
-  offset = offset >>> 0;
-  return ((buf[offset]) |
-      (buf[offset + 1] << 8) |
-      (buf[offset + 2] << 16)) +
-      (buf[offset + 3] * 0x1000000);
-}
-function parseTemperatureOutOfRangeVega (val) {
-  if ( val === 0 ) return false;
-  else if ( val === 1 ) return true;
-  else return 'notValidValue';
-}
-function parseReasonVega (val) {
-  if ( val === 0 ) return 'byTime';
-  else if ( val === 1 ) return 'bySecurityInputTriggered';
-  else if ( val === 2 ) return 'byTamperSensorTriggered';
-  else if ( val === 3 ) return 'byHallSensor1Triggered';
-  else if ( val === 4 ) return 'byHallSensor2Triggered';
-  else if ( val === 5 ) return 'byTemperatureOutOfRange';
-  else return 'notValidValue';
-}
-function uInt8toInputsVega (val) {
-  var result = {};
-  var MASK_SECURITY_INPUT_STATE = 0x01;
-  var MASK_TAMPER_SENSOR_STATE = 0x02;
-  var MASK_HALL_SENSOR_1_STATE = 0x04;
-  var MASK_HALL_SENSOR_2_STATE = 0x08;
-  var securityInputState = ( ( val & MASK_SECURITY_INPUT_STATE ) >> 0 );
-  var tamperSensorState = ( ( val & MASK_TAMPER_SENSOR_STATE ) >> 1 );
-  var hallSensor1State = ( ( val & MASK_HALL_SENSOR_1_STATE ) >> 2 );
-  var hallSensor2State = ( ( val & MASK_HALL_SENSOR_2_STATE ) >> 3 );
-  if ( securityInputState === 0x00 ) result.securityInputState = 'unlocking';
-  else if ( securityInputState === 0x01 ) result.securityInputState = 'closure';
-  else  result.securityInputState = 'notValidValue';
-  if ( tamperSensorState === 0x00 ) result.isCaseOpened = false;
-  else if ( tamperSensorState === 0x01 ) result.isCaseOpened = true;
-  else  result.isCaseOpened = 'notValidValue';
-  if ( hallSensor1State === 0x00 ) result.isHallSensor1Triggered = true;
-  else if ( hallSensor1State === 0x01 ) result.isHallSensor1Triggered = false;
-  else  result.isHallSensor1Triggered = 'notValidValue';
-  if ( hallSensor2State === 0x00 ) result.isHallSensor2Triggered = true;
-  else if ( hallSensor2State === 0x01 ) result.isHallSensor2Triggered = false;
-  else  result.isHallSensor2Triggered = 'notValidValue';
-  return result;
+offset = offset >>> 0;
+return ((buf[offset]) |
+    (buf[offset + 1] << 8) |
+    (buf[offset + 2] << 16)) +
+    (buf[offset + 3] * 0x1000000);
 }
 function parseSettingVega (setting)
 {
   var result = {
     statusParse: false
   };
-  if ( setting.id === 3 )
-  {
-    result.name = 'typeActivation';
-    var val = readUInt8(setting.rawValue,0);
-    if ( val === 1 ) result.value = 'OTAA';
-    else if ( val === 2 ) result.value = 'ABP';
-
-    if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
-  }
-  else if ( setting.id === 4 )
+  if ( setting.id === 4 )
   {
     result.name = 'confirmedUplinks';
     var val = readUInt8(setting.rawValue,0); 
@@ -445,6 +398,12 @@ function parseSettingVega (setting)
 
     if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
   }
+  else if ( setting.id === 126 )
+  {
+    result.name = 'meterTransmissionPeriodDays';
+    result.value = readUInt8(setting.rawValue,0);
+    if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
+  }
   return result;
 }
 function decodeUplink (input) {
@@ -452,37 +411,31 @@ function decodeUplink (input) {
   var bytes = input.bytes;
   var variables = input.variables;
   var result = {
-    decoder:"vega_td11_v1",
+    decoder:"vega_betar_sgbm_v1",
     statusDecode: false
   };
   if ( fPort === 2 )
   {
-    var type = bytes[0];
-    if ( type === 1 )
-    {
-      var rawTemperatureOutOfRange = readUInt8(bytes,2);
-      var rawReason = readUInt8(bytes,11);
-      var rawInputs = readUInt8(bytes,12);
-      var isTemperatureOutOfRange = parseTemperatureOutOfRangeVega(rawTemperatureOutOfRange);
-      var reason = parseReasonVega(rawReason);
-      var inputs = uInt8toInputsVega(rawInputs);
-
-      result.type = 'currentValues';
+    var rawType = readUInt8(bytes,0);
+    var type = 'unknown';
+    if ( rawType === 1 ) type = 'currentValues';
+    else if ( rawType === 3 ) type = 'magneticFieldAffected';
+    else if ( rawType === 4 ) type = 'noResponseFromModule';
+    else if ( rawType === 5 ) type = 'moduleError';
+    if (type !== 'unknown') {
+      result.type = type;
       result.chargePercent = readUInt8(bytes,1);
-      result.isTemperatureOutOfRange = isTemperatureOutOfRange;
-      result.time = readUInt32LE(bytes,3);
+      result.time = readUInt32LE(bytes,2);
       result.timeStringISO = new Date(result.time*1000).toISOString();
-      result.temperature = readInt16LE(bytes,7)/10;
-      result.lowTemperature = readInt8(bytes,9);
-      result.highTemperature = readInt8(bytes,10);
-      result.reason = reason;
-      result.inputs = inputs;
+      result.temperature = readInt8(bytes,6);
+      result.consumption = readUInt32LE(bytes,7)/1000;
+      result.rebootsNumber = readUInt8(bytes,11);
       result.statusDecode = true;
     }
   }
-  else if ( fPort === 4 ) 
+  else if ( fPort === 4 )
   {
-    var type = bytes[0];
+    var type = readUInt8(bytes,0);
     if ( type === 255 ) 
     {
       result.type = 'correctionTime';
@@ -493,7 +446,7 @@ function decodeUplink (input) {
   }
   else if ( fPort === 3 )
   {
-    var type = bytes[0];
+    var type = readUInt8(bytes,0);
     if ( type === 0 )
     {
       result.type = 'settings';

@@ -23,43 +23,25 @@ function readUInt32LE (buf, offset) {
       (buf[offset + 2] << 16)) +
       (buf[offset + 3] * 0x1000000);
 }
-function parseTemperatureOutOfRangeVega (val) {
+function parseMagneticFieldEffectDetectedVega (val) {
   if ( val === 0 ) return false;
   else if ( val === 1 ) return true;
   else return 'notValidValue';
 }
-function parseReasonVega (val) {
-  if ( val === 0 ) return 'byTime';
-  else if ( val === 1 ) return 'bySecurityInputTriggered';
-  else if ( val === 2 ) return 'byTamperSensorTriggered';
-  else if ( val === 3 ) return 'byHallSensor1Triggered';
-  else if ( val === 4 ) return 'byHallSensor2Triggered';
-  else if ( val === 5 ) return 'byTemperatureOutOfRange';
+function parseDigitalIndicatorBlockedVega (val) {
+  if ( val === 0 ) return false;
+  else if ( val === 1 ) return true;
   else return 'notValidValue';
 }
-function uInt8toInputsVega (val) {
-  var result = {};
-  var MASK_SECURITY_INPUT_STATE = 0x01;
-  var MASK_TAMPER_SENSOR_STATE = 0x02;
-  var MASK_HALL_SENSOR_1_STATE = 0x04;
-  var MASK_HALL_SENSOR_2_STATE = 0x08;
-  var securityInputState = ( ( val & MASK_SECURITY_INPUT_STATE ) >> 0 );
-  var tamperSensorState = ( ( val & MASK_TAMPER_SENSOR_STATE ) >> 1 );
-  var hallSensor1State = ( ( val & MASK_HALL_SENSOR_1_STATE ) >> 2 );
-  var hallSensor2State = ( ( val & MASK_HALL_SENSOR_2_STATE ) >> 3 );
-  if ( securityInputState === 0x00 ) result.securityInputState = 'unlocking';
-  else if ( securityInputState === 0x01 ) result.securityInputState = 'closure';
-  else  result.securityInputState = 'notValidValue';
-  if ( tamperSensorState === 0x00 ) result.isCaseOpened = false;
-  else if ( tamperSensorState === 0x01 ) result.isCaseOpened = true;
-  else  result.isCaseOpened = 'notValidValue';
-  if ( hallSensor1State === 0x00 ) result.isHallSensor1Triggered = true;
-  else if ( hallSensor1State === 0x01 ) result.isHallSensor1Triggered = false;
-  else  result.isHallSensor1Triggered = 'notValidValue';
-  if ( hallSensor2State === 0x00 ) result.isHallSensor2Triggered = true;
-  else if ( hallSensor2State === 0x01 ) result.isHallSensor2Triggered = false;
-  else  result.isHallSensor2Triggered = 'notValidValue';
-  return result;
+function parseLeakDetectedVega (val) {
+  if ( val === 0 ) return false;
+  else if ( val === 1 ) return true;
+  else return 'notValidValue';
+}
+function parsePipeBreakDetectedVega (val) {
+  if ( val === 0 ) return false;
+  else if ( val === 1 ) return true;
+  else return 'notValidValue';
 }
 function parseSettingVega (setting)
 {
@@ -452,7 +434,7 @@ function decodeUplink (input) {
   var bytes = input.bytes;
   var variables = input.variables;
   var result = {
-    decoder:"vega_td11_v1",
+    decoder:"vega_betar_v1",
     statusDecode: false
   };
   if ( fPort === 2 )
@@ -460,27 +442,29 @@ function decodeUplink (input) {
     var type = bytes[0];
     if ( type === 1 )
     {
-      var rawTemperatureOutOfRange = readUInt8(bytes,2);
-      var rawReason = readUInt8(bytes,11);
-      var rawInputs = readUInt8(bytes,12);
-      var isTemperatureOutOfRange = parseTemperatureOutOfRangeVega(rawTemperatureOutOfRange);
-      var reason = parseReasonVega(rawReason);
-      var inputs = uInt8toInputsVega(rawInputs);
+      var rawMagneticFieldEffectDetected = readUInt8(bytes,3);
+      var rawDigitalIndicatorBlocked = readUInt8(bytes,4);
+      var rawLeakDetected = readUInt8(bytes,9);
+      var rawPipeBreakDetected = readUInt8(bytes,10);
+      var isMagneticFieldEffectDetected = parseMagneticFieldEffectDetectedVega(rawMagneticFieldEffectDetected);
+      var isDigitalIndicatorBlocked = parseDigitalIndicatorBlockedVega(rawDigitalIndicatorBlocked);
+      var isLeakDetected = parseLeakDetectedVega(rawLeakDetected);
+      var isPipeBreakDetected = parsePipeBreakDetectedVega(rawPipeBreakDetected);
 
       result.type = 'currentValues';
       result.chargePercent = readUInt8(bytes,1);
-      result.isTemperatureOutOfRange = isTemperatureOutOfRange;
-      result.time = readUInt32LE(bytes,3);
+      result.temperature = readInt16LE(bytes,2);
+      result.isMagneticFieldEffectDetected = isMagneticFieldEffectDetected;
+      result.isDigitalIndicatorBlocked = isDigitalIndicatorBlocked;
+      result.time = readUInt32LE(bytes,5);
       result.timeStringISO = new Date(result.time*1000).toISOString();
-      result.temperature = readInt16LE(bytes,7)/10;
-      result.lowTemperature = readInt8(bytes,9);
-      result.highTemperature = readInt8(bytes,10);
-      result.reason = reason;
-      result.inputs = inputs;
+      result.isLeakDetected = isLeakDetected;
+      result.isPipeBreakDetected = isPipeBreakDetected;
+      result.consumption = readUInt32LE(bytes,11)/10000;
       result.statusDecode = true;
     }
   }
-  else if ( fPort === 4 ) 
+  else if ( fPort === 4 )
   {
     var type = bytes[0];
     if ( type === 255 ) 

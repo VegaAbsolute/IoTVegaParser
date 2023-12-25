@@ -351,7 +351,10 @@ function parseReasonUM0101 (reason)
   else if ( reason === 8 ) return 'removingFindOut';
   return 'unknown';
 }
-function Decode (fPort, bytes, variables) {
+function decodeUplink (input) {
+  var fPort = input.fPort;
+  var bytes = input.bytes;
+  var variables = input.variables;
   var result = {
   	decoder:"vega_smart_um_0101_v1",
     statusDecode: false
@@ -430,5 +433,5 @@ function Decode (fPort, bytes, variables) {
       result.statusDecode = true;
     }
   }
-  return result;
+  return { data: result };
 }

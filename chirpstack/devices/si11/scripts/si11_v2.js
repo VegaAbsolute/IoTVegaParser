@@ -8,13 +8,13 @@ function readUInt8 (buf, offset) {
   return (buf[offset]);
 }
 function readUInt16LE (buf, offset) {
-  offset = offset >>> 0;
-  return buf[offset] | (buf[offset + 1] << 8);
+    offset = offset >>> 0;
+    return buf[offset] | (buf[offset + 1] << 8);
 }
 function readInt16LE (buf, offset) {
-  offset = offset >>> 0;
-  var val = buf[offset] | (buf[offset + 1] << 8);
-  return (val & 0x8000) ? val | 0xFFFF0000 : val;
+    offset = offset >>> 0;
+    var val = buf[offset] | (buf[offset + 1] << 8);
+    return (val & 0x8000) ? val | 0xFFFF0000 : val;
 }
 function readUInt32LE (buf, offset) {
   offset = offset >>> 0;
@@ -23,46 +23,31 @@ function readUInt32LE (buf, offset) {
       (buf[offset + 2] << 16)) +
       (buf[offset + 3] * 0x1000000);
 }
-function parseEnvironmentMBUS (val) {
-  if ( val === 0x00 ) return 'other';
-  if ( val === 0x01 ) return 'oil';
-  if ( val === 0x02 ) return 'electricity';
-  if ( val === 0x03 ) return 'gas';
-  if ( val === 0x04 ) return 'heat';
-  if ( val === 0x05 ) return 'stream';
-  if ( val === 0x06 ) return 'hotWater';
-  if ( val === 0x07 ) return 'water';
-  if ( val === 0x08 ) return 'heatCostAllocator';
-  if ( val === 0x09 ) return 'compressedAir';
-  if ( val === 0x0A ) return 'CoolingLoadMeterOutlet';
-  if ( val === 0x0B ) return 'CoolingLoadMeterInlet';
-  if ( val === 0x0C ) return 'HeatInlet';
-  if ( val === 0x0D ) return 'HeatCoolingLoadMeter';
-  if ( val === 0x0E ) return 'BusSystem';
-  if ( val === 0x0F ) return 'UnknownMedium';
-  if ( val >= 0x10 && val <= 0x15 ) return 'Reserved10to15';
-  if ( val === 0x16 ) return 'ColdWater';
-  if ( val === 0x17 ) return 'DualWater';
-  if ( val === 0x18 ) return 'Pressure';
-  if ( val === 0x19 ) return 'ADConverter';
-  if ( val >= 20 && val <= 0xFF ) return 'Reserved20toFF';
-  return 'unknown';
+function encodeValue(length, value, res) {
+  const values = [];
+  for (let i = 1; i <= length; i++) {
+    const offset = 8*(i-1);
+    values.unshift(
+      (value >> offset) & 0xFF
+    );
+  }
+  for (let i = 0; i < length; i++) {
+    res.push(values[i]);
+  }
 }
-function uInt8toCurrentSettingsVegaMBUS (val) {
+function uInt8toCurrentSettingsVegaSI (val) {
 	var MASK_TYPE_ACTIVATION      = 0x01;
-  var MASK_ACK                  = 0x02;
-  var MASK_CONNECTION_PERIOD    = 0x1C;
-  var MASK_TYPE_INPUT_1         = 0x20;
-  var MASK_TYPE_INPUT_2         = 0x40;
-  var MASK_RESERVE              = 0x80;
-
+    var MASK_CONNECTION_PERIOD    = 0x0E;
+    var MASK_TYPE_INPUT_1         = 0x10;
+    var MASK_TYPE_INPUT_2         = 0x20;
+    var MASK_TYPE_INPUT_3         = 0x40;
+    var MASK_TYPE_INPUT_4         = 0x80;
   var typeActivation 	= ( ( val & MASK_TYPE_ACTIVATION   ) >> 0 );
-  var ack             = ( ( val & MASK_ACK )               >> 1 );
-	var connectPeriod  	= ( ( val & MASK_CONNECTION_PERIOD ) >> 2 );
-	var typeInput1    	= ( ( val & MASK_TYPE_INPUT_1 )      >> 5 );
-	var typeInput2    	= ( ( val & MASK_TYPE_INPUT_2 )      >> 6 );
-	var reserve    	    = ( ( val & MASK_RESERVE )           >> 7 );
-
+	var connectPeriod  	= ( ( val & MASK_CONNECTION_PERIOD ) >> 1 );
+	var typeInput1    	= ( ( val & MASK_TYPE_INPUT_1 )      >> 4 );
+	var typeInput2    	= ( ( val & MASK_TYPE_INPUT_2 )      >> 5 );
+	var typeInput3    	= ( ( val & MASK_TYPE_INPUT_3 )      >> 6 );
+	var typeInput4    	= ( ( val & MASK_TYPE_INPUT_4 )      >> 7 );
   if      ( connectPeriod === 0x00 ) connectPeriod = 5; 
 	else if ( connectPeriod === 0x04 ) connectPeriod = 15; 
 	else if ( connectPeriod === 0x02 ) connectPeriod = 30; 
@@ -70,15 +55,22 @@ function uInt8toCurrentSettingsVegaMBUS (val) {
 	else if ( connectPeriod === 0x01 ) connectPeriod = 360; 
 	else if ( connectPeriod === 0x05 ) connectPeriod = 720; 
 	else if ( connectPeriod === 0x07 ) connectPeriod = 1440;
-  
-  return {
+  	return {
     	typeActivation: typeActivation?'ABP':'OTAA',
-      ack: ack?true:false,
     	connectPeriodMin:  connectPeriod,
-    	typeInput1: ( typeInput1 === 1 )?'security':'unknown',
-    	typeInput2: ( typeInput2 === 1 )?'security':'unknown',
-    	reserve: reserve
+    	typeInput1: typeInput1?'guard':'pulse',
+    	typeInput2: typeInput2?'guard':'pulse',
+    	typeInput3: typeInput3?'guard':'pulse',
+    	typeInput4: typeInput4?'guard':'pulse',
 	};
+}
+function encodeValue(length, value, res) {
+  for (let i = 1; i <= length; i++) {
+    const offset = 8*(i-1);
+    res.push(
+      (value >> offset) & 0xFF
+    );
+  }
 }
 function parseSettingVega (setting)
 {
@@ -252,77 +244,33 @@ function decodeUplink (input) {
   var bytes = input.bytes;
   var variables = input.variables;
   var result = {
-  	decoder:"vega_mbus_1_v1.1",
+  	decoder:"vega_si_11_v2",
     statusDecode: false
   };
   if ( fPort === 2 )
   {
-    var type = bytes[0];
-    if ( type === 1 )
-    {
-      var cs = readUInt8(bytes,2);
-      var currentSettings = uInt8toCurrentSettingsVegaMBUS(cs);
-      
-      result.type = 'currentValues';
-      result.chargePercent = readUInt8(bytes,1);
-      result.currentSettings = currentSettings;
-      result.serial = readUInt32LE(bytes,3);
-      result.time = readUInt32LE(bytes,7);
-      result.timeStringISO = new Date(result.time*1000).toISOString();
-      result.energyConsumedWh = readUInt32LE(bytes,11);
-      result.totalVolumeCoolantL = readUInt32LE(bytes,15);
-      result.operatingTimeH = readUInt32LE(bytes,19);
-      result.temperatureFlow = readUInt16LE(bytes,23) / 100;
-      result.temperatureReturnLine = readUInt16LE(bytes,25) / 100; 
-      result.currentFlowCoolantLH16 = readUInt16LE(bytes,27); 
-      result.currentFlowCoolantLH32 = readUInt32LE(bytes,29); 
-      result.powerW = readUInt16LE(bytes,33); 
-      result.environment = parseEnvironmentMBUS(bytes[37]);
-      result.statusDecode = true;
-    }
-    else if ( type === 3 )
-    {
-      result.type = 'mbusData';
-      result.sizeData = readUInt16LE(bytes,1); 
-      result.sizeDataPackage = readUInt8(bytes,3);
-      result.numPackage = readUInt8(bytes,4);
-      result.countPackage = readUInt8(bytes,5);
-      result.data = bytes.slice(6);
-      result.statusDecode = true;
-    }
-    else if ( type === 4 )
-    {
-      var cs = readUInt8(bytes,2);
-      var currentSettings = uInt8toCurrentSettingsVegaMBUS(cs);
-      result.type = 'externalPowerStatus';
-      result.chargePercent = readUInt8(bytes,1);
-      result.currentSettings = currentSettings;
-      result.externalPowerState = ( readUInt8(bytes,3)  === 1 )?'on':'off' ;
-      result.statusDecode = true;
-    }
-    else if ( type === 5 )
-    {
-      var cs = readUInt8(bytes,2);
-      var currentSettings = uInt8toCurrentSettingsVegaMBUS(cs);
-      result.type = 'danger';
-      result.chargePercent = readUInt8(bytes,1);
-      result.currentSettings = currentSettings;
-      result.danger_input = readUInt8(bytes,3);
-      result.input1 = readUInt8(bytes,4)?'closure':'unlocking';
-      result.input2 = readUInt8(bytes,5)?'closure':'unlocking';
-      result.statusDecode = true;
-    }
-    else if ( type === 6 )
-    {
-      var cs = readUInt8(bytes,2);
-      var currentSettings = uInt8toCurrentSettingsVegaMBUS(cs);
-      result.type = 'changesOutputs';
-      result.chargePercent = readUInt8(bytes,1);
-      result.currentSettings = currentSettings;
-      result.change_output = readUInt8(bytes,3);
-      result.state_output = readUInt8(bytes,4)?'on':'off';
-      result.statusDecode = true;
-    }
+    var rawReason = readUInt8(bytes,0);
+    var cs = readUInt8(bytes,23);
+    var currentSettings = uInt8toCurrentSettingsVegaSI(cs);
+    result.currentSettings = currentSettings;
+    if ( rawReason === 0 ) result.reason = 'byTime';
+    else if ( rawReason === 1 ) result.reason = 'bySecurityInput1Triggered';
+    else if ( rawReason === 2 ) result.reason = 'bySecurityInput2Triggered';
+    else if ( rawReason === 3 ) result.reason = 'bySecurityInput3Triggered';
+    else if ( rawReason === 4 ) result.reason = 'bySecurityInput4Triggered';
+    result.chargePercent = readUInt8(bytes,1);
+    result.time = readUInt32LE(bytes,2);
+    result.timeStringISO = new Date(result.time*1000).toISOString();
+    result.temperature = readInt8(bytes,6);
+    result.input1 = readUInt32LE(bytes,7);
+    result.input2 = readUInt32LE(bytes,11);
+    result.input3 = readUInt32LE(bytes,15);
+    result.input4 = readUInt32LE(bytes,19);
+    if ( currentSettings.typeInput1 === 'guard'  ) result.input1 = result.input1 ? 'closure' : 'unlocking';
+    if ( currentSettings.typeInput2 === 'guard'  ) result.input2 = result.input2 ? 'closure' : 'unlocking';
+    if ( currentSettings.typeInput3 === 'guard'  ) result.input3 = result.input3 ? 'closure' : 'unlocking';
+    if ( currentSettings.typeInput4 === 'guard'  ) result.input4 = result.input4 ? 'closure' : 'unlocking';
+    result.statusDecode = true;
   }
   else if ( fPort === 4 )
   {
@@ -366,3 +314,137 @@ function decodeUplink (input) {
   }
   return { data: result };
 }
+function Encode(fPort, obj, variables) {
+  const res = [];
+  if ( fPort === 3 ) 
+  {
+    let rawType = 0;
+    const lengthMap = {
+      '4': 1,
+      '8': 1,
+      '12': 1,
+      '13': 1,
+      '14': 1,
+      '15': 1,
+      '16': 1,
+      '49': 1,
+      '55': 2,
+    };
+    const type = obj.type;
+    if (type === 'set_settings') {
+      rawType = 0;
+      res.push(rawType);
+    }
+    else if (type === 'get_settings') {
+      rawType = 1;
+      res.push(rawType);
+      return res;
+    }
+    else return res;
+    const settings = obj.settings
+    if (settings && typeof settings === 'object' && Array.isArray(settings))
+    {
+      settings.forEach(setting => {
+        if (!setting || typeof setting !== 'object') return;
+        const { value } = setting;
+        const id = parseInt(setting.id, 10);
+        const length = lengthMap[String(id)];
+        if (typeof id !== 'number') return;
+        if (id === 4) {
+          let rawValue;
+          if (value === 'confirmed') rawValue = 1;
+          if (value === 'unconfirmed') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 8) {
+          if (typeof value !== 'number' || value < 1 || value > 15) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, value, res);
+        }
+        if (id === 12) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 13) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 14) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 15) {
+          let rawValue;
+          if (value === 'pulse') rawValue = 1;
+          if (value === 'guard') rawValue = 2;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 16) {  
+          let rawValue;
+          if (value === 60) rawValue = 1;
+          if (value === 360) rawValue = 2;
+          if (value === 720) rawValue = 3;
+          if (value === 1440) rawValue = 4;
+          if (value === 5) rawValue = 5;
+          if (value === 15) rawValue = 6;
+          if (value === 30) rawValue = 7;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 49) {  
+          let rawValue;
+          if (value === 60) rawValue = 1;
+          if (value === 360) rawValue = 2;
+          if (value === 720) rawValue = 3;
+          if (value === 1440) rawValue = 4;
+          if (value === 5) rawValue = 5;
+          if (value === 15) rawValue = 6;
+          if (value === 30) rawValue = 7;
+          if (!rawValue) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, rawValue, res);
+        }
+        if (id === 55) {
+          if (typeof value !== 'number' && (value < -720 || value > 840)) return;
+          encodeValue(2, id, res);
+          res.push(length);
+          encodeValue(length, value, res);
+        }
+      });
+    }
+  }
+  return res;
+}
+
+function encodeDownlink(input){
+  const fPort = input.fPort;
+  const obj = input.obj;
+  const variables = input.variables;
+  return { bytes: Encode(fPort, obj, variables) }
+}
+
