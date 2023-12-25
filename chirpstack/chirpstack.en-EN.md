@@ -57,7 +57,8 @@ Message content will display, by click on the message. Decoded data will display
 ## Supported devices list
 
 - [Vega Smart-AS0101 - acceleration sensor](devices/as0101/as0101.en-EN.md)
-- [Betar-Vega SHVE/SGVE - electronic water meter](devices/betar/betar.en-EN.md)
+- [Betar-Vega SGBM-1.6 - small-sized household gas meter](devices/betar_sgbm/betar_sgbm.en-EN.md)
+- [Betar-Vega SHVE/SGVE - electronic water meter](devices/betar_shve/betar_shve.en-EN.md)
 - [Vega GM-2 - modem for Elster gas meters](devices/gm2/gm2.en-EN.md)
 - [Vega Smart-HS0101 - sensor of humidity/temperature/door and window/acceleration](devices/hs0101/hs0101.en-EN.md)
 - [Vega LM-1 - Tracking device](devices/lm1/lm1.en-EN.md)
@@ -76,4 +77,5 @@ Message content will display, by click on the message. Decoded data will display
 - [Vega TP-11 - 4-20 mA converter](devices/tp11/tp11.en-EN.md)
 - [Vega TS-12 - network tester](devices/ts12/ts12.en-EN.md)
 - [Vega Smart-UM0101 - universal office sensor 5 in 1](devices/um0101/um0101.en-EN.md)
+- [Vega Smart-WB0101 - LoRaWAN button](devices/wb0101/wb0101.en-EN.md)
 - [Electricity meter CE2726A/CE2727A](devices/SPBZIP/SPBZIP.en-EN.md)

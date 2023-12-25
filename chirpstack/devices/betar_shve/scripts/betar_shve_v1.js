@@ -23,23 +23,25 @@ function readUInt32LE (buf, offset) {
       (buf[offset + 2] << 16)) +
       (buf[offset + 3] * 0x1000000);
 }
-function parseReasonVega (val) {
-  if      ( val === 0 ) return 'byTime';
-  else if ( val === 1 ) return 'bySecurityInput1Triggered';
-  else if ( val === 2 ) return 'bySecurityInput2Triggered';
-  else if ( val === 3 ) return 'byOutput1StateChanged';
-  else if ( val === 4 ) return 'byOutput2StateChanged';
-  else if ( val === 5 ) return 'byMagneticFieldEffectDetected';
-  else if ( val === 6 ) return 'byCaseOpened';
+function parseMagneticFieldEffectDetectedVega (val) {
+  if ( val === 0 ) return false;
+  else if ( val === 1 ) return true;
   else return 'notValidValue';
 }
-function encodeValue(length, value, res) {
-  for (let i = 1; i <= length; i++) {
-    const offset = 8*(i-1);
-    res.push(
-      (value >> offset) & 0xFF
-    );
-  }
+function parseDigitalIndicatorBlockedVega (val) {
+  if ( val === 0 ) return false;
+  else if ( val === 1 ) return true;
+  else return 'notValidValue';
+}
+function parseLeakDetectedVega (val) {
+  if ( val === 0 ) return false;
+  else if ( val === 1 ) return true;
+  else return 'notValidValue';
+}
+function parsePipeBreakDetectedVega (val) {
+  if ( val === 0 ) return false;
+  else if ( val === 1 ) return true;
+  else return 'notValidValue';
 }
 function parseSettingVega (setting)
 {
@@ -225,21 +227,6 @@ function parseSettingVega (setting)
 
     if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
   }
-  else if ( setting.id === 46 )
-  {
-    result.name = 'dataCollectionPeriodMin';
-    var val = readUInt8(setting.rawValue,0); 
-    if ( val === 1 ) result.value = 60;
-    else if ( val === 2 ) result.value = 360;
-    else if ( val === 3 ) result.value = 720;
-    else if ( val === 4 ) result.value = 1440;
-    else if ( val === 5 ) result.value = 5;
-    else if ( val === 6 ) result.value = 15;
-    else if ( val === 7 ) result.value = 30;
-    else result.value = 'notValidValue';
-    
-    if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
-  }
   else if ( setting.id === 48 )
   {
     result.name = 'tpHeatTimeS';
@@ -271,14 +258,6 @@ function parseSettingVega (setting)
     if ( val >= -720 && val <= 840 ) result.value = val;
     else result.value = 'notValidValue';
     
-    if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
-  }
-  else if ( setting.id === 56 )
-  {
-    result.name = 'initialConsumption';
-    var val = readUInt32LE(setting.rawValue,0);
-    result.value = val / 1000;
-
     if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
   }
   else if ( setting.id === 62 )
@@ -364,24 +343,6 @@ function parseSettingVega (setting)
     if ( val >= -40 && val <= 85 ) result.value = val;
     else result.value = 'notValidValue';
     
-    if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
-  }
-  else if ( setting.id === 85 )
-  {
-    result.name = 'lowCurrentLimit';
-    var val = readUInt16LE(setting.rawValue,0);
-    if ( val >= 200 && val <= 2500 ) result.value = val/100;
-    else result.value = 'notValidValue';
-
-    if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
-  }
-  else if ( setting.id === 86 )
-  {
-    result.name = 'highCurrentLimit';
-    var val = readUInt16LE(setting.rawValue,0);
-    if ( val >= 200 && val <= 2500 ) result.value = val/100;
-    else result.value = 'notValidValue';
-
     if ( result.value !== undefined && result.name !== undefined ) result.statusParse = true;
   }
   else if ( setting.id === 88 )
@@ -470,28 +431,35 @@ function parseSettingVega (setting)
 }
 function Decode (fPort, bytes, variables) {
   var result = {
-    decoder:"vega_gm2_v1",
+    decoder:"vega_betar_v1",
     statusDecode: false
   };
   if ( fPort === 2 )
   {
-    var rawReason = readUInt8(bytes,6);
-    var reason = parseReasonVega(rawReason);
+    var type = bytes[0];
+    if ( type === 1 )
+    {
+      var rawMagneticFieldEffectDetected = readUInt8(bytes,3);
+      var rawDigitalIndicatorBlocked = readUInt8(bytes,4);
+      var rawLeakDetected = readUInt8(bytes,9);
+      var rawPipeBreakDetected = readUInt8(bytes,10);
+      var isMagneticFieldEffectDetected = parseMagneticFieldEffectDetectedVega(rawMagneticFieldEffectDetected);
+      var isDigitalIndicatorBlocked = parseDigitalIndicatorBlockedVega(rawDigitalIndicatorBlocked);
+      var isLeakDetected = parseLeakDetectedVega(rawLeakDetected);
+      var isPipeBreakDetected = parsePipeBreakDetectedVega(rawPipeBreakDetected);
 
-    result.chargePercent = readUInt8(bytes,0);
-    result.time = readUInt32LE(bytes,1);
-    result.timeStringISO = new Date(result.time*1000).toISOString();
-    result.temperature = readInt8(bytes,5);
-    result.reason = reason;
-    result.input1State = readUInt8(bytes,7) ? 'closure' : 'unlocking';
-    result.input2State = readUInt8(bytes,8) ? 'closure' : 'unlocking';
-    result.output1State = readUInt8(bytes,9) ? 'closure' : 'unlocking';
-    result.output2State = readUInt8(bytes,10) ? 'closure' : 'unlocking';
-    result.isMagneticFieldEffectDetected = !!readUInt8(bytes,11);
-    result.isCaseOpened = !!readUInt8(bytes,12);
-    result.consumption = readUInt32LE(bytes,13)/100;
-    result.initialConsumption = readUInt32LE(bytes,17)/100;
-    result.statusDecode = true;
+      result.type = 'currentValues';
+      result.chargePercent = readUInt8(bytes,1);
+      result.temperature = readInt16LE(bytes,2);
+      result.isMagneticFieldEffectDetected = isMagneticFieldEffectDetected;
+      result.isDigitalIndicatorBlocked = isDigitalIndicatorBlocked;
+      result.time = readUInt32LE(bytes,5);
+      result.timeStringISO = new Date(result.time*1000).toISOString();
+      result.isLeakDetected = isLeakDetected;
+      result.isPipeBreakDetected = isPipeBreakDetected;
+      result.consumption = readUInt32LE(bytes,11)/10000;
+      result.statusDecode = true;
+    }
   }
   else if ( fPort === 4 )
   {
@@ -536,165 +504,5 @@ function Decode (fPort, bytes, variables) {
   }
   return result;
 }
-function Encode(fPort, obj, variables) {
-  const res = [];
-  if ( fPort === 2 )
-  {
-    let rawOutputNum = 0;
-    const data = obj.data;
-    const outputNum = data.outputNum;
-    if ( typeof outputNum === 'number' && outputNum >= 0 && outputNum < 256 ) 
-    {
-      rawOutputNum = outputNum;
-    }
-    res.push(rawOutputNum);
-    let rawState = 2;
-    const state = data.state;
-    if ( state === 'unlocking' ) rawState = 0; 
-    else if ( state === 'closure' ) rawState = 1;
-    res.push(rawState);
-    const time = data.time;
-    if ( typeof time === 'number' && time >= 0 && time < 65536 )
-    {
-      encodeValue(2, time, res);
-    }
-    else return [];
-  }
-  if ( fPort === 3 ) 
-  {
-    const lengthMap = {
-      '4': 1,
-      '8': 1,
-      '12': 1,
-      '13': 1,
-      '16': 1,
-      '49': 1,
-      '55': 2,
-      '56': 4,
-    };
-    let rawType = 0;
-    const type = obj.type;
-    if (type === 'set_settings') {
-      rawType = 0;
-      res.push(rawType);
-    }
-    else if (type === 'get_settings') {
-      rawType = 1;
-      res.push(rawType);
-      return res;
-    }
-    else return res;
-    const settings = obj.settings
-    if (settings && typeof settings === 'object' && Array.isArray(settings))
-    {
-      settings.forEach(setting => {
-        if (!setting || typeof setting !== 'object') return;
-        const { value } = setting;
-        const id = parseInt(setting.id, 10);
-        const length = lengthMap[String(id)];
-        if (typeof id !== 'number') return;
-        if (id === 4) {
-          let rawValue;
-          if (value === 'confirmed') rawValue = 1;
-          if (value === 'unconfirmed') rawValue = 2;
-          if (!rawValue) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, rawValue, res);
-        }
-        if (id === 8) {
-          if (typeof value !== 'number' || value < 1 || value > 15) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, value, res);
-        }
-        if (id === 12) {
-          let rawValue;
-          if (value === 'pulse') rawValue = 1;
-          if (value === 'guard') rawValue = 2;
-          if (!rawValue) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, rawValue, res);
-        }
-        if (id === 13) {
-          let rawValue;
-          if (value === 'pulse') rawValue = 1;
-          if (value === 'guard') rawValue = 2;
-          if (!rawValue) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, rawValue, res);
-        }
-        if (id === 16) {  
-          let rawValue;
-          if (value === 60) rawValue = 1;
-          if (value === 360) rawValue = 2;
-          if (value === 720) rawValue = 3;
-          if (value === 1440) rawValue = 4;
-          if (value === 5) rawValue = 5;
-          if (value === 15) rawValue = 6;
-          if (value === 30) rawValue = 7;
-          if (!rawValue) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, rawValue, res);
-        }
-        if (id === 49) {  
-          let rawValue;
-          if (value === 60) rawValue = 1;
-          if (value === 360) rawValue = 2;
-          if (value === 720) rawValue = 3;
-          if (value === 1440) rawValue = 4;
-          if (value === 5) rawValue = 5;
-          if (value === 15) rawValue = 6;
-          if (value === 30) rawValue = 7;
-          if (!rawValue) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, rawValue, res);
-        }
-        if (id === 55) {
-          if (typeof value !== 'number' && (value < -720 || value > 840)) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, value, res);
-        }
-        if (id === 56) {
-          if (
-            typeof value !== 'number' ||
-            value < -9223372036854775808 ||
-            value > 9223372036854775807
-          ) return;
-          encodeValue(2, id, res);
-          res.push(length);
-          encodeValue(length, value*1000, res);
-        }
-      });
-    }
-  }
-  if ( fPort === 4 )
-  {
-    let rawType = 0;
-    const type = obj.type;
-    if (type === 'time_correction') 
-    {
-      rawType = 255;
-      res.push(rawType);
-    }
-    else return res;
-    const value = obj.data.value;
-    if (
-      typeof value === 'number' &&
-      value >= -9223372036854775808 &&
-      value <= 9223372036854775807
-    ) 
-    {
-      encodeValue(8, value);
-    }
-    else return [];
-  }
-  return res;
-}
 
-module.exports = { Decode, Encode };
+module.exports = { Decode };
