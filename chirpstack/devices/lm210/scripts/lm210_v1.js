@@ -262,129 +262,150 @@ function parseSettingVega (setting)
   }
   return result;
 }
-function Decode (fPort, bytes, variables) {
-    var result = {
-        decoder:"vega_lm_1_v2",
-      statusDecode: false
-    };
-    if ( fPort === 2 )
+function decodeUplink (input) {
+  var fPort = input.fPort;
+  var bytes = input.bytes;
+  var variables = input.variables;
+  var result = {
+    decoder:"vega_lm_210_v1",
+    statusDecode: false
+  };
+  if ( fPort === 2 )
+  {
+    var type = bytes[0];
+    if ( type === 1 )
     {
-      var type = bytes[0];
-      if ( type === 1 )
-      {
-        result.type = 'Режим ГЛОНАСС/GPS';
-        result.reason = readUInt8(bytes,1);
-        result.chargePercent = readUInt8(bytes,2);
-        result.time = readUInt32LE(bytes,3);
-        result.timeStringISO = new Date(result.time*1000).toISOString();
-        result.temperature = readInt8(bytes,7);
-        result.state = readUInt8(bytes,8);
-        result.angle = readUInt16LE(bytes,9)/10;
-        result.latitude = readUInt32LE(bytes,11)/1000000;
-        result.longitude = readUInt32LE(bytes,15)/1000000;
-        result.course = readUInt16LE(bytes,19);
-        result.speed = readInt16LE(bytes,21);
-        result.altitude = readInt16LE(bytes,23);
-        result.visibleSat = readInt8(bytes,25);
-        result.usedSat = readInt8(bytes,26);
-        result.stateipm = readInt8(bytes,27)
-      }
-      else if ( type === 5 )
-      {
-        result.type = 'Режим нескольких меток';
-        result.reason = readUInt8(bytes,1);
-        result.chargePercent = readUInt8(bytes,2);
-        result.time = readUInt32LE(bytes,3);
-        result.timeStringISO = new Date(result.time*1000).toISOString();
-        result.temperature = readInt8(bytes,7);
-        result.state = readUInt8(bytes,8);
-        result.angle = readUInt16LE(bytes,9)/10;
-        result.rTags = [];
-        
-        var mac1 = readMacRadioTag(bytes,11);
-        var mac2 = readMacRadioTag(bytes,22);
-        var mac3 = readMacRadioTag(bytes,33);
-
-        if ( mac1 )
-        {
-          result.rTags.push({
-            mac:mac1,
-            mV:readUInt8(bytes,17),
-            tempTags:readInt16LE(bytes,18)/100,
-            humdt:readUInt8(bytes,19)/100,
-            rssiRef:readInt8(bytes,20),
-            rssi:readInt8(bytes,21)
-          });
-        }
-        if ( mac2 )
-        {
-          result.rTags.push({
-            mac:mac2,
-            mV:readUInt8(bytes,28),
-            tempTags:readInt16LE(bytes,29)/100,
-            humdt:readUInt8(bytes,30)/100,
-            rssiRef:readInt8(bytes,31),
-            rssi:readInt8(bytes,32)
-          });
-        }
-        if ( mac3 )
-        {
-          result.rTags.push({
-            mac:mac3,
-            mV:readUInt8(bytes,39),
-            tempTags:readInt16LE(bytes,40)/100,
-            humdt:readUInt8(bytes,41)/100,
-            rssiRef:readInt8(bytes,42),
-            rssi:readInt8(bytes,43)
-          });
-        }
-        result.stateipm = readInt8(bytes, 44);
-        //result.statusDecode = true;
-      }
-      else if ( type === 2 )
-      {
-        result.type = 'Режим одиночной метки';
-        result.reason = readUInt8(bytes,1);
-        result.chargePercent = readUInt8(bytes,2);        
-        result.time = readUInt32LE(bytes,3);
-        result.timeStringISO = new Date(result.time*1000).toISOString();
-        result.temperature = readInt8(bytes,7);
-        result.state = readUInt8(bytes,8);
-        result.angle = readUInt16LE(bytes,9)/10;
-        result.typeBeacon = readInt8(bytes,11);
-        result.rTags = [];
-        
-        var mac1 = readMacRadioTag(bytes,12);
-        if ( mac1 )
-        {
-          result.rTags.push({
-            mac:mac1,
-            mV:readUInt8(bytes,18),
-            tempTags:readInt16LE(bytes,19)/100,
-            rssiRef:readInt8(bytes,22),
-            rssi:readInt8(bytes,23)
-          });
-        }
-        result.stateipm = readInt8(bytes, 24);
-        result.bytesRaw = bytes;
-        result.statusDecode = true;
-      }
-      else if ( type === 10 ) 
-      {
-        result.type = 'Пакет включения команды';
-        result.ID = readUInt8(bytes, 1);
-      }
+      result.type = 'Режим ГЛОНАСС/GPS';
+      result.reason = readUInt8(bytes,1);
+      result.chargePercent = readUInt8(bytes,2);
+      result.time = readUInt32LE(bytes,3);
+      result.timeStringISO = new Date(result.time*1000).toISOString();
+      result.temperature = readInt8(bytes,7);
+      result.state = readUInt8(bytes,8);
+      result.angle = readUInt16LE(bytes,9)/10;
+      result.latitude = readUInt32LE(bytes,11)/1000000;
+      result.longitude = readUInt32LE(bytes,15)/1000000;
+      result.course = readUInt16LE(bytes,19);
+      result.speed = readInt16LE(bytes,21);
+      result.altitude = readInt16LE(bytes,23);
+      result.visibleSat = readInt8(bytes,25);
+      result.usedSat = readInt8(bytes,26);
+      result.stateipm = readInt8(bytes,27)
     }
-    else if ( fPort === 3 ) 
+    else if ( type === 5 )
     {
-      var type = bytes[0];
-      if ( type === 0 )
-      {
-        result.type = 'Пакет с настройками';
-        result.ID = readInt16LE(bytes, 1);
-        result.len = readUInt8(bytes, 3);
+      result.type = 'Режим нескольких меток';
+      result.reason = readUInt8(bytes,1);
+      result.chargePercent = readUInt8(bytes,2);
+      result.time = readUInt32LE(bytes,3);
+      result.timeStringISO = new Date(result.time*1000).toISOString();
+      result.temperature = readInt8(bytes,7);
+      result.state = readUInt8(bytes,8);
+      result.angle = readUInt16LE(bytes,9)/10;
+      result.rTags = [];
+      
+      var mac1 = readMacRadioTag(bytes,11);
+      var mac2 = readMacRadioTag(bytes,22);
+      var mac3 = readMacRadioTag(bytes,33);
 
+      if ( mac1 )
+      {
+        result.rTags.push({
+          mac:mac1,
+          mV:readUInt8(bytes,17),
+          tempTags:readInt16LE(bytes,18)/100,
+          humdt:readUInt8(bytes,19)/100,
+          rssiRef:readInt8(bytes,20),
+          rssi:readInt8(bytes,21)
+        });
       }
+      if ( mac2 )
+      {
+        result.rTags.push({
+          mac:mac2,
+          mV:readUInt8(bytes,28),
+          tempTags:readInt16LE(bytes,29)/100,
+          humdt:readUInt8(bytes,30)/100,
+          rssiRef:readInt8(bytes,31),
+          rssi:readInt8(bytes,32)
+        });
+      }
+      if ( mac3 )
+      {
+        result.rTags.push({
+          mac:mac3,
+          mV:readUInt8(bytes,39),
+          tempTags:readInt16LE(bytes,40)/100,
+          humdt:readUInt8(bytes,41)/100,
+          rssiRef:readInt8(bytes,42),
+          rssi:readInt8(bytes,43)
+        });
+      }
+      result.stateipm = readInt8(bytes, 44);
+      //result.statusDecode = true;
     }
-    return result;
+    else if ( type === 2 )
+    {
+      result.type = 'Режим одиночной метки';
+      result.reason = readUInt8(bytes,1);
+      result.chargePercent = readUInt8(bytes,2);        
+      result.time = readUInt32LE(bytes,3);
+      result.timeStringISO = new Date(result.time*1000).toISOString();
+      result.temperature = readInt8(bytes,7);
+      result.state = readUInt8(bytes,8);
+      result.angle = readUInt16LE(bytes,9)/10;
+      result.typeBeacon = readInt8(bytes,11);
+      result.rTags = [];
+      
+      var mac1 = readMacRadioTag(bytes,12);
+      if ( mac1 )
+      {
+        result.rTags.push({
+          mac:mac1,
+          mV:readUInt8(bytes,18),
+          tempTags:readInt16LE(bytes,19)/100,
+          rssiRef:readInt8(bytes,22),
+          rssi:readInt8(bytes,23)
+        });
+      }
+      result.stateipm = readInt8(bytes, 24);
+      result.bytesRaw = bytes;
+      result.statusDecode = true;
+    }
+    else if ( type === 10 ) 
+    {
+      result.type = 'Пакет включения команды';
+      result.ID = readUInt8(bytes, 1);
+    }
   }
+  else if ( fPort === 3 ) 
+  {
+    var type = bytes[0];
+    if ( type === 0 )
+    {
+      result.type = 'Пакет с настройками';
+      result.settings = {};
+      var rawSettings = bytes.slice(1);
+      while( rawSettings.length > 0 )
+      {
+        var id = readUInt16LE(rawSettings,0);
+        var length = readUInt8(rawSettings,2);
+        var rawValue = rawSettings.slice(3,length+3)
+        result.settings[id] = {
+          id: id,
+          length: length,
+          rawValue: rawValue
+        };
+        var setting = parseSettingVega(result.settings[id]);
+        if ( setting.statusParse )
+        {
+          result.settings[id].name = setting.name;
+          result.settings[id].value = setting.value;
+        }
+        rawSettings = rawSettings.slice(2+1+length);
+      }
+      result.statusDecode = true;
+    }
+  }
+  return { data: result };
+}
