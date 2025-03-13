@@ -812,7 +812,7 @@ function parseSettingVega (setting)
 
 function Decode (fPort, bytes, variables) {
     var result = {
-        decoder: "vega_si_22_v1",
+        decoder: "vega_si_23", 
         statusDecode: false,
     };
     if (fPort === 2) {
