@@ -810,11 +810,16 @@ function parseSettingVega (setting)
   return result;
 }
 
-function Decode (fPort, bytes, variables) {
+function decodeUplink(input) {
+    var fPort = input.fPort;
+    var bytes = input.bytes;
+    var variables = input.variables;
+    
     var result = {
-        decoder: "vega_si_22_v1",
+        decoder: "vega_si_23",
         statusDecode: false,
     };
+    
     if (fPort === 2) {
         result.statusDecode = parsePort2Packet(bytes, result);
     } else if (fPort === 4) {
@@ -828,5 +833,8 @@ function Decode (fPort, bytes, variables) {
     } else if (fPort === 3) {
         result.statusDecode = parsePort3Packet(bytes, result);
     }
-    return result;
+    
+    return {
+        data: result
+    };
 }
